@@ -1,0 +1,11 @@
+numpy 
+pandas 
+matplotlib 
+seaborn 
+torch 
+torchvision 
+torchaudio 
+stable_baselines3 == 2.3.2 
+Shimmy==0.2.1
+gymnasium==0.29.0
+gym==0.26.2

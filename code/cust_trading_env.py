@@ -2,7 +2,7 @@ import gym
 from gym import spaces
 import numpy as np
 import pandas as pd
-
+from benchmark_costs_script import Benchmark
 class TradingEnv(gym.Env):
     """
     Custom Trading Environment for Reinforcement Learning
@@ -17,8 +17,10 @@ class TradingEnv(gym.Env):
         self.total_timesteps = len(self.data)
 
         # Action Space: Number of shares to sell (continuous, between 0 and remaining inventory)
-        self.action_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
+        # self.action_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1, high=1, shape=(1,), dtype=np.float32)
 
+        self.benchmark = Benchmark(self.data)
         # Observation Space: State features described above
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(len(self._get_state(0)),), dtype=np.float32
@@ -59,12 +61,11 @@ class TradingEnv(gym.Env):
         self.remaining_inventory = 1000  # Reset inventory to 1000 shares
         self.current_step = 0  # Start from the beginning of the data
         return np.array(self._get_state(self.current_step), dtype=np.float32)
+    
     def step(self, action):
-        """
-        Take an action and return the next state, reward, done flag, and info.
-        """
-        # Calculate number of shares to sell, constrained by remaining inventory
-        shares_to_sell = (action[0] + 1) * self.remaining_inventory / 2  # Scale to ensure impactful trades
+    # Calculate number of shares to sell, constrained by remaining inventory
+        print(f"Action Value: {action}")
+        shares_to_sell = (action[0] + np.random.uniform(-0.05, 0.05)) * self.remaining_inventory / 2
         shares_to_sell = min(max(shares_to_sell, 0), self.remaining_inventory)
 
         # Update remaining inventory
@@ -76,24 +77,22 @@ class TradingEnv(gym.Env):
         # Extract the current market data row
         row = self.data.iloc[self.current_step]
 
-        # Calculate reward components with adjusted scaling
-        slippage_penalty = row['bid_ask_spread'] / 2  # Reduce the effect of slippage penalty by dividing by 2
-        market_impact_penalty = 30 * (shares_to_sell / (row['volume'] + 1e-5))
-        
+        # Calculate slippage and market impact using the Benchmark class
+        alpha = 4.439584265535017e-06
+        slippage_penalty, market_impact_penalty = self.benchmark.compute_components(alpha, shares_to_sell, self.current_step)
+
+        # print(f"Slippage Penalty: {slippage_penalty}, Market Impact Penalty: {market_impact_penalty}")
         # Apply penalty if any inventory remains at the end of the day
-        remaining_penalty = 20 * self.remaining_inventory if self.current_step == self.total_timesteps - 1 else 0
+        # remaining_penalty = 20 * self.remaining_inventory if self.current_step == self.total_timesteps - 1 else 0
 
         # Calculate total reward (negative value for penalties)
-        reward = - (slippage_penalty + market_impact_penalty + remaining_penalty)
+        reward = - (slippage_penalty + market_impact_penalty )
 
         # Check if we have reached the end of the trading day
         done = self.current_step >= self.total_timesteps - 1
 
         # Get the next state
         state = self._get_state(self.current_step)
-
-        # Print the reward components for debugging
-        print(f"Slippage Penalty: {-slippage_penalty}, Market Impact Penalty: {-market_impact_penalty}, Remaining Penalty: {-remaining_penalty}, Current Step: {self.current_step}")
 
         return np.array(state, dtype=np.float32), reward, done, {}
 
@@ -104,20 +103,20 @@ class TradingEnv(gym.Env):
         print(f"Step: {self.current_step}, Remaining Inventory: {self.remaining_inventory}, Action Taken: Sell Shares")
 
 # Create an instance of the environment with the cleaned dataset
-data = pd.read_csv("/Users/shashidharbabu/Documents/07. Projects/Blockhouse /Blockhouse-Work-Trial/data/final_data.csv")
-merged_bid_ask_data = pd.DataFrame(data)
+# data = pd.read_csv("/Users/shashidharbabu/Documents/07. Projects/Blockhouse /Blockhouse-Work-Trial/data/final_data.csv")
+# merged_bid_ask_data = pd.DataFrame(data)
 
-env = TradingEnv(merged_bid_ask_data)
+# env = TradingEnv(merged_bid_ask_data)
 
-# Test resetting and taking a step in the environment
-initial_state = env.reset()
-action = np.array([0.1], dtype=np.float32)  # Example action: sell 10% of remaining inventory
-next_state, reward, done, _ = env.step(action)
+# # Test resetting and taking a step in the environment
+# initial_state = env.reset()
+# action = np.array([0.1], dtype=np.float32)  # Example action: sell 10% of remaining inventory
+# next_state, reward, done, _ = env.step(action)
 
-initial_state, next_state, reward, done
+# initial_state, next_state, reward, done
 
-# Print the initial state, next state, reward, and done flag
-print("Initial State:", initial_state)
-print("Next State:", next_state)
-print("Reward:", reward)
-print("Done:", done)
+# # Print the initial state, next state, reward, and done flag
+# print("Initial State:", initial_state)
+# print("Next State:", next_state)
+# print("Reward:", reward)
+# print("Done:", done)

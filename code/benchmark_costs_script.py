@@ -74,26 +74,17 @@ class Benchmark:
         return pd.DataFrame(trades)
     
     def calculate_vwap(self, idx, shares):
-        """
-        Calculates the Volume-Weighted Average Price (VWAP) for a given step and share size.
-
-        Parameters:
-        idx (int): The index of the current step in the market data.
-        shares (int): The number of shares being traded at the current step.
-
-        Returns:
-        float: The calculated VWAP price for the current step.
-        """
-        # Assumes you have best 5 bid prices and sizes in your dataset
-        bid_prices = [self.data[f'bid_price_{i}'] for i in range(1,6)]
-        bid_sizes = [self.data[f'bid_size_{i}'] for i in range(1,6)]
+    # Assumes you have best 5 bid prices and sizes in your dataset
+        bid_prices = [self.data[f'bid_price_{i}'].iloc[idx] for i in range(1,6)]
+        bid_sizes = [self.data[f'bid_size_{i}'].iloc[idx] for i in range(1,6)]
         cumsum = 0
-        for idx, size in enumerate(bid_sizes):
+        for i, size in enumerate(bid_sizes):
             cumsum += size
             if cumsum >= shares:
                 break
         
-        return np.sum(bid_prices[:idx+1] * bid_sizes[:idx+1]) / np.sum(bid_sizes[:idx+1])
+        return np.sum(np.array(bid_prices[:i+1]) * np.array(bid_sizes[:i+1])) / np.sum(bid_sizes[:i+1])
+
 
     def compute_components(self, alpha, shares, idx):
         """
@@ -107,10 +98,17 @@ class Benchmark:
         Returns:
         array: A NumPy array containing the slippage and market impact for the given trade.
         """
+        # actual_price = self.calculate_vwap(idx, shares)
+        # Slippage = (self.data['bid_price_1'] - actual_price) * shares  # Assumes bid_price is in your dataset
+        # Market_Impact = alpha * np.sqrt(shares)
+        # return np.array([Slippage, Market_Impact])
+        
         actual_price = self.calculate_vwap(idx, shares)
-        Slippage = (self.data['bid_price_1'] - actual_price) * shares  # Assumes bid_price is in your dataset
-        Market_Impact = alpha * np.sqrt(shares)
-        return np.array([Slippage, Market_Impact])
+        slippage = (self.data['bid_price_1'].iloc[idx] - actual_price) * shares  # Assumes bid_price is in your dataset
+        market_impact = alpha * np.sqrt(shares)
+        print(f"Market Impact: {market_impact}, Slippage: {slippage}")
+        return slippage, market_impact
+    
     
     def simulate_strategy(self, trades, data, preferred_timeframe):
         """

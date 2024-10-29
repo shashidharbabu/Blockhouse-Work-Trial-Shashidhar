@@ -37,7 +37,7 @@ print("VWAP Slippage:", vwap_slippage)
 print("VWAP Market Impact:", vwap_market_impact)
 
 
-rl_total_reward = -0.00033625413 # Replace with your actual RL reward after running the test
+rl_total_reward = -0.00014039198867976665 # Replace with your actual RL reward after running the test
 
 # TWAP and VWAP total penalties
 twap_total_penalty = sum(twap_slippage) + sum(twap_market_impact)

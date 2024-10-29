@@ -17,13 +17,13 @@ class TradingEnv(gym.Env):
         self.total_timesteps = len(self.data)
 
         # Action Space: Number of shares to sell (continuous, between 0 and remaining inventory)
-        # self.action_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
-        self.action_space = spaces.Box(low=-1, high=1, shape=(1,), dtype=np.float32)
+        # self.action_space = spaces.Box(low=-1, high=1, shape=(1,), dtype=np.float32)
+        self.action_space = spaces.Box(low=0.00, high=1.00, shape=(1,), dtype=np.float32)
 
         self.benchmark = Benchmark(self.data)
         # Observation Space: State features described above
         self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(len(self._get_state(0)),), dtype=np.float32
+            low=-1, high=1, shape=(len(self._get_state(0)),), dtype=np.float32
         )
 
         # Internal state
@@ -63,38 +63,67 @@ class TradingEnv(gym.Env):
         return np.array(self._get_state(self.current_step), dtype=np.float32)
     
     def step(self, action):
-    # Calculate number of shares to sell, constrained by remaining inventory
+    # Ensure action value is between 0 and 1
+        fraction_to_sell = max(min(action, 1.0), 0.0)
         print(f"Action Value: {action}")
-        shares_to_sell = (action[0] + np.random.uniform(-0.05, 0.05)) * self.remaining_inventory / 2
-        shares_to_sell = min(max(shares_to_sell, 0), self.remaining_inventory)
 
-        # Update remaining inventory
+        # Calculate the number of shares to sell
+        shares_to_sell = np.round(fraction_to_sell * self.remaining_inventory)
+
+        # Ensure the number of shares is valid
+        shares_to_sell = min(max(shares_to_sell, 0), self.remaining_inventory)
+        
+        # Reduce inventory by the number of shares sold
         self.remaining_inventory -= shares_to_sell
+            
+        # Get the current timestamp
+        current_timestamp = self.data.iloc[self.current_step]['timestamp']
+        
+        # Store additional information
+        info = {'timestamp': current_timestamp}
 
         # Move to the next step (time progresses by one minute)
         self.current_step += 1
 
-        # Extract the current market data row
-        row = self.data.iloc[self.current_step]
+        # Extract the current market data row (if within range)
+        if self.current_step < len(self.data):
+            row = self.data.iloc[self.current_step]
 
-        # Calculate slippage and market impact using the Benchmark class
+        # Calculate slippage and market impact
         alpha = 4.439584265535017e-06
         slippage_penalty, market_impact_penalty = self.benchmark.compute_components(alpha, shares_to_sell, self.current_step)
 
-        # print(f"Slippage Penalty: {slippage_penalty}, Market Impact Penalty: {market_impact_penalty}")
         # Apply penalty if any inventory remains at the end of the day
-        # remaining_penalty = 20 * self.remaining_inventory if self.current_step == self.total_timesteps - 1 else 0
+        remaining_penalty = 0.01 * self.remaining_inventory if self.current_step == self.total_timesteps - 1 else 0
 
+        
         # Calculate total reward (negative value for penalties)
-        reward = - (slippage_penalty + market_impact_penalty )
+        reward = - (slippage_penalty + market_impact_penalty + remaining_penalty)
 
         # Check if we have reached the end of the trading day
         done = self.current_step >= self.total_timesteps - 1
 
         # Get the next state
         state = self._get_state(self.current_step)
+        # print(f"State at step {self.current_step}: {state}")
+        processed_state = []
+        for value in state:
+            # If the value is a numpy array (like array([0.], dtype=float32)), extract the first value
+            if isinstance(value, np.ndarray):
+                processed_state.append(value.item())
+            # Convert other types like np.float64 or np.int64 to float
+            elif isinstance(value, (np.float64, np.int64)):
+                processed_state.append(float(value))
+            else:
+                processed_state.append(value)
+        
+        # Convert the processed state to a numpy array with float32 type
+        state = np.array(processed_state, dtype=np.float32)
 
-        return np.array(state, dtype=np.float32), reward, done, {}
+        
+        # state = np.array(state, dtype=np.float32)
+
+        return state, reward, done, info
 
     def render(self, mode='human'):
         """

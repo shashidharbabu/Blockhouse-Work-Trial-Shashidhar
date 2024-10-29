@@ -3,14 +3,27 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 import pandas as pd
 from cust_trading_env import TradingEnv
 # Load the dataset
+import numpy as np
+from stable_baselines3.common.noise import NormalActionNoise
+
+
 data = pd.read_csv("/Users/shashidharbabu/Documents/07. Projects/Blockhouse /Blockhouse-Work-Trial/data/final_data.csv")
 merged_bid_ask_data = pd.DataFrame(data)
 
-# Create an instance of the environment
-env = TradingEnv(merged_bid_ask_data)
+# Split the dataset into training and testing sets
+split_ratio = 0.8  # 80% training, 20% testing
+split_index = int(len(data) * split_ratio)
 
-# Wrap the environment in a vectorized wrapper for training
-vec_env = DummyVecEnv([lambda: env])
+# Split the dataset
+train_data = data.iloc[:split_index]
+test_data = data.iloc[split_index:]
+
+# Create training environment
+vec_env = DummyVecEnv([lambda: TradingEnv(train_data)])
+
+
+n_actions = vec_env.action_space.shape[-1]
+action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.5 * np.ones(n_actions))
 
 
 #Defining PPO model
@@ -33,7 +46,9 @@ model = SAC(
     learning_rate=0.0005,  # Learning rate for the SAC algorithm
     gamma=0.99,           # Discount factor
     batch_size = 128,         # Batch size for training
-    ent_coef = 0.1
+    ent_coef = 0.5,
+    action_noise=action_noise  # Add noise for better exploration
+
 )
 
 # Train the model

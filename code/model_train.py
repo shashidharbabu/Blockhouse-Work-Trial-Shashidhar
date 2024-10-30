@@ -6,7 +6,9 @@ from cust_trading_env import TradingEnv
 import numpy as np
 from stable_baselines3.common.noise import NormalActionNoise
 
-
+import os
+os.system("pip install nvgpu")
+# import nvgpu
 data = pd.read_csv("/Users/shashidharbabu/Documents/07. Projects/Blockhouse /Blockhouse-Work-Trial/data/final_data.csv")
 merged_bid_ask_data = pd.DataFrame(data)
 
